@@ -5,12 +5,13 @@ output:
     keep_md: true
 ---
 
-
 ## Loading and preprocessing the data
-```{r Load and Preprocess, echo = TRUE}
+```{r Load and Preprocess, echo = TRUE, include = FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
 activity <- read.csv('activity.csv')
-daily_steps <- with(activity[!is.na(activity$steps), ], tapply(steps, date, sum)) %>%
-    sapply(function(x){if(is.na(x)){x = 0} else{x}})
+daily_steps <- with(activity[!is.na(activity$steps), ], tapply(steps, date, sum))
 intervals <- with(activity[!is.na(activity$steps), ], tapply(steps, interval, mean))
 intervals <- data.frame('Interval' = names(intervals),
                         'Average.Steps' = intervals,
@@ -23,15 +24,15 @@ intervals$Interval <- as.integer(as.character(intervals$Interval))
 hist(daily_steps, main = 'Steps per Day', xlab = 'Steps', ylim = c(0, 30))
 ```
 
-The mean number of steps per day is:
-```{r Mean, echo = TRUE}
-mean(daily_steps, na.rm = TRUE)
+```{r Mean, echo = TRUE, results = 'hide'}
+Mean <- mean(daily_steps, na.rm = TRUE)
 ```
+The mean number of steps per day is `r Mean`.
 
-The median number of steps per day is:
-```{r Median, echo = TRUE}
-median(daily_steps, na.rm = TRUE)
+```{r Median, echo = TRUE, results = 'hide'}
+Median <- median(daily_steps, na.rm = TRUE)
 ```
+The median number of steps per day is `r Median`.
 
 ## What is the average daily activity pattern?
 ```{r Time Series, echo = TRUE}
@@ -42,25 +43,26 @@ print(ggplot(intervals, aes(x = Interval, y = Average.Steps)) +
     ylab('Steps'))
 ```
 
-```{r Max Activity, echo = TRUE, include = FALSE}
+```{r Max Activity, echo = TRUE, results = 'hide'}
 high <- intervals[which.max(intervals$Average.Steps), ]
-high$Average.Steps
+Max.Activity <- high$Average.Steps
 ```
 
-```{r Highest Active Time, echo = TRUE, include = FALSE}
+```{r Highest Active Time, echo = TRUE, results = 'hide'}
 h <- as.integer(high$Interval) %/% 100
 m <- as.integer(high$Interval) %% 100
-paste(h, ':', m, sep = '')
+Highest.Active.Time <- paste(h, ':', m, sep = '')
 ```
-The highest average levels of activity were `r Max Activity` steps in 5 minutes.
-This occurred at `r Highest Active Time`.
+The highest average levels of activity were `r Max.Activity` steps in 5 minutes.
+This occurred at `r Highest.Active.Time`.
 
 ## Imputing missing values
-```{r Missing Values, echo = TRUE, include = FALSE}
-sum(is.na(activity$steps))
+```{r Missing Values, echo = TRUE, results = 'hide'}
+Missing.Values <- sum(is.na(activity$steps))
 ```
-There are `r Missing Values` missing values in the dataset.
+There are `r Missing.Values` missing values in the dataset. 
 
+If we impute the missing data with the averages for the 5-minute intervals that are missing, the new data look like this:
 ```{r Impute, echo = TRUE}
 activity$steps0 <- numeric(nrow(activity))
 for(i in seq_along(activity$steps)){
@@ -73,12 +75,65 @@ for(i in seq_along(activity$steps)){
 }
 activity0 <- data.frame('date' = activity$date, 
                         'interval' = activity$interval,
-                        'steps' = activity$steps)
+                        'steps' = activity$steps0)
 daily_steps0 <- with(activity0, tapply(steps, date, sum))
+hist(daily_steps0, main = 'Steps per Day', xlab = 'Steps', ylim = c(0, 35))
 ```
 
-```{r newMean}
-
+```{r newMean, echo = TRUE, results = 'hide'}
+newMean <- mean(daily_steps0, na.rm = TRUE)
 ```
+The imputed dataset mean number of steps per day is `r newMean`.
+
+```{r newMedian, echo = TRUE, results = 'hide'}
+newMedian <- median(daily_steps0, na.rm = TRUE)
+```
+The imputed dataset median number of steps per day is `r newMedian`.
+
+Imputing has done nothing with the average as we are just using the averages. The median changes slightly to reflect an imputed value that is now the median. As we can see with the histogram, the frequency of the higher step totals is raised.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r weekdays, echo = TRUE}
+wkdy <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+activity$days <- factor(x = character(length = nrow(activity)),
+                        levels = c('weekday', 'weekend'))
+for(i in seq_along(activity$date)){
+    if(weekdays(as.Date(activity$date[i])) %in% wkdy){
+        activity[i, 'days'] <- 'weekday'
+    }else{
+        activity[i, 'days'] <- 'weekend'
+    }
+}
+```
+
+```{r means_split, echo = TRUE}
+weekday_means <- with(activity[activity$days == 'weekday', ],
+                      tapply(steps0, interval, mean))
+weekday_means <- data.frame('Interval' = names(weekday_means),
+                        'weekday.Steps' = weekday_means,
+                        row.names = NULL)
+weekend_means <- with(activity[activity$days == 'weekend', ],
+                      tapply(steps0, interval, mean))
+weekend_means <- data.frame('Interval' = names(weekend_means),
+                        'weekend.Steps' = weekend_means,
+                        row.names = NULL)
+means <- merge(weekend_means, weekday_means,
+               by = intersect('Interval', 'Interval'))
+means$Interval <- as.integer(as.character(means$Interval))
+means <- arrange(means, Interval)
+means <- means %>% gather(key = 'part.of.week', value = 'average.steps',
+                          c(weekend.Steps, weekday.Steps))
+```
+
+Let's take a look at a comparison of the activity levels across time separated by weekday and weekend.
+
+```{r dayPlot, echo = TRUE}
+p1 <- ggplot(means, aes(Interval, average.steps)) +
+    geom_line() +
+    labs(title = 'Activity by Part of week',
+         x = 'Time',
+         y = 'Steps') +
+    facet_grid(cols = vars(part.of.week))
+print(p1)
+```
