@@ -7,19 +7,78 @@ output:
 
 
 ## Loading and preprocessing the data
-
-
+```{r Load and Preprocess, echo = TRUE}
+activity <- read.csv('activity.csv')
+daily_steps <- with(activity[!is.na(activity$steps), ], tapply(steps, date, sum)) %>%
+    sapply(function(x){if(is.na(x)){x = 0} else{x}})
+intervals <- with(activity[!is.na(activity$steps), ], tapply(steps, interval, mean))
+intervals <- data.frame('Interval' = names(intervals),
+                        'Average.Steps' = intervals,
+                        row.names = NULL)
+intervals$Interval <- as.integer(as.character(intervals$Interval))
+```
 
 ## What is mean total number of steps taken per day?
+```{r Steps per Day, echo = TRUE}
+hist(daily_steps, main = 'Steps per Day', xlab = 'Steps', ylim = c(0, 30))
+```
 
+The mean number of steps per day is:
+```{r Mean, echo = TRUE}
+mean(daily_steps, na.rm = TRUE)
+```
 
+The median number of steps per day is:
+```{r Median, echo = TRUE}
+median(daily_steps, na.rm = TRUE)
+```
 
 ## What is the average daily activity pattern?
+```{r Time Series, echo = TRUE}
+print(ggplot(intervals, aes(x = Interval, y = Average.Steps)) + 
+    geom_line() +
+    labs(title = 'Average Steps', subtitle = 'by Time of Day') +
+    xlab('Time') +
+    ylab('Steps'))
+```
 
+```{r Max Activity, echo = TRUE, include = FALSE}
+high <- intervals[which.max(intervals$Average.Steps), ]
+high$Average.Steps
+```
 
+```{r Highest Active Time, echo = TRUE, include = FALSE}
+h <- as.integer(high$Interval) %/% 100
+m <- as.integer(high$Interval) %% 100
+paste(h, ':', m, sep = '')
+```
+The highest average levels of activity were `r Max Activity` steps in 5 minutes.
+This occurred at `r Highest Active Time`.
 
 ## Imputing missing values
+```{r Missing Values, echo = TRUE, include = FALSE}
+sum(is.na(activity$steps))
+```
+There are `r Missing Values` missing values in the dataset.
 
+```{r Impute, echo = TRUE}
+activity$steps0 <- numeric(nrow(activity))
+for(i in seq_along(activity$steps)){
+    if(is.na(activity[i, 'steps'])){
+        activity[i, 'steps0'] <- intervals[intervals$Interval == activity[i, 'interval'],
+                                           'Average.Steps']
+    }else{
+        activity[i, 'steps0'] <- activity[i, 'steps']
+    }
+}
+activity0 <- data.frame('date' = activity$date, 
+                        'interval' = activity$interval,
+                        'steps' = activity$steps)
+daily_steps0 <- with(activity0, tapply(steps, date, sum))
+```
 
+```{r newMean}
+
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
