@@ -10,6 +10,7 @@ output:
 library(tidyr)
 library(dplyr)
 library(ggplot2)
+options(scipen = 5)
 activity <- read.csv('activity.csv')
 daily_steps <- with(activity[!is.na(activity$steps), ], tapply(steps, date, sum))
 intervals <- with(activity[!is.na(activity$steps), ], tapply(steps, interval, mean))
